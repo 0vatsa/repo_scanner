@@ -10,6 +10,47 @@
 
 # ── File traversal ────────────────────────────────────────────────────────────
 
+# Directories the scanner will never descend into.
+# Matching is by directory *name only* (not full path), so "build" skips every
+# directory named "build" anywhere in the tree.
+# Hidden directories (names starting with ".") are skipped separately via
+# SKIP_HIDDEN_DIRS below, but you can also list them here explicitly.
+SKIP_DIRS: set[str] = {
+    # ── Version control ──────────────────────────────────────────────────────
+    ".git",
+    ".svn",
+    ".hg",
+
+    # ── Dependency caches ─────────────────────────────────────────────────────
+    "node_modules",
+    "vendor",           # Go, PHP Composer, Ruby bundler
+    "third_party",
+
+    # ── Python artefacts ─────────────────────────────────────────────────────
+    "__pycache__",
+    ".pytest_cache",
+    ".tox",
+    ".eggs",
+    "venv",
+    ".venv",
+    "env",
+    ".env",             # virtualenv named ".env"
+
+    # ── Build outputs ─────────────────────────────────────────────────────────
+    "dist",
+    "build",
+    "target",           # Maven / Rust / Scala
+    "out",
+
+    # ── IDE metadata ──────────────────────────────────────────────────────────
+    ".idea",
+    ".vscode",
+
+    # ── ADD YOUR OWN ENTRIES BELOW ────────────────────────────────────────────
+    # "my_internal_cache",
+    # "generated_proto",
+}
+
 # Maximum size (in bytes) a file may be before it is skipped entirely.
 # Default: 2 MB.  Set to 0 to disable the limit (not recommended on large repos).
 MAX_FILE_SIZE_BYTES: int = 2 * 1024 * 1024   # 2 MB
@@ -23,6 +64,15 @@ SKIP_HIDDEN_DIRS: bool = True
 # Number of bytes read from the start of each file to determine whether it
 # is binary (null-byte probe). Increase for more accuracy, decrease for speed.
 BINARY_PROBE_BYTES: int = 8192   # 8 KB
+
+
+# File extensions to skip entirely (case-insensitive, leading dot required).
+# Default: empty — all text files are scanned.
+# Add extensions directly to this set:
+#
+#   SKIP_FILE_EXTENSIONS: set[str] = {".md", ".txt", ".lock"}
+#
+SKIP_FILE_EXTENSIONS: set[str] = set()
 
 
 # ── Entropy analysis ─────────────────────────────────────────────────────────
@@ -76,6 +126,9 @@ LINE_DISPLAY_LENGTH: int = 200
 # Validation — do not edit below this line
 # ─────────────────────────────────────────────────────────────────────────────
 
+assert isinstance(SKIP_DIRS, set),     "SKIP_DIRS must be a set"
+assert all(isinstance(d, str) and len(d) > 0 for d in SKIP_DIRS),     "Every entry in SKIP_DIRS must be a non-empty string"
+
 assert isinstance(MAX_FILE_SIZE_BYTES, int), \
     "MAX_FILE_SIZE_BYTES must be an int"
 assert MAX_FILE_SIZE_BYTES >= 0, \
@@ -109,6 +162,11 @@ assert all(isinstance(s, str) and len(s) > 0 for s in ENTROPY_CHARSETS), \
 
 assert ENTROPY_SEVERITY in {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}, \
     "ENTROPY_SEVERITY must be one of: CRITICAL, HIGH, MEDIUM, LOW, INFO"
+
+assert isinstance(SKIP_FILE_EXTENSIONS, set), \
+    "SKIP_FILE_EXTENSIONS must be a set"
+assert all(isinstance(e, str) and e.startswith(".") for e in SKIP_FILE_EXTENSIONS), \
+    "Every entry in SKIP_FILE_EXTENSIONS must be a string starting with '.' (e.g. '.md')"
 
 assert isinstance(MATCH_DISPLAY_LENGTH, int) and MATCH_DISPLAY_LENGTH > 0, \
     "MATCH_DISPLAY_LENGTH must be a positive int"

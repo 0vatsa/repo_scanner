@@ -31,11 +31,17 @@ python3 main.py /path/to/repo --ignore-severity INFO --ignore-id H003 E001
 # save a JSON report
 python3 main.py /path/to/repo --output report.json
 
-# save a CSV report (opens in Excel / Google Sheets / LibreOffice Calc / Text Editor)
+# save a CSV report (opens in Excel / Google Sheets)
 python3 main.py /path/to/repo --output-csv report.csv
 
 # save both at once
 python3 main.py /path/to/repo --output report.json --output-csv report.csv
+
+# skip specific file extensions
+python3 main.py /path/to/repo --skip-ext .md .txt .lock
+
+# leading dot is optional
+python3 main.py /path/to/repo --skip-ext md txt lock
 
 # everything combined
 python3 main.py /path/to/repo --severity HIGH --ignore-id C004 --output report.json --output-csv report.csv
@@ -108,8 +114,7 @@ repo_scanner/
     ├── entropy.py               ← Shannon entropy analysis
     ├── scanner.py               ← walk + scan engine
     ├── reporter.py              ← terminal + JSON output
-    ├── config.py                ← ✏️  runtime parameters (size limits, entropy tuning, etc.)
-    └── skip_dirs.py             ← ✏️  directories to skip
+    └── config.py                ← ✏️  all runtime parameters, skip lists, and entropy tuning
 ```
 
 ---
@@ -128,6 +133,7 @@ python3 main.py <repo> [options]
 | `--ignore-id ID [ID ...]` | Suppress findings with these specific rule IDs |
 | `--output FILE` | Save a JSON report to this path |
 | `--output-csv FILE` | Save a CSV report to this path (compatible with Excel / Google Sheets) |
+| `--skip-ext EXT [EXT ...]` | Skip files with these extensions. Leading dot optional. Example: `--skip-ext .md .txt .lock` |
 
 ### `--severity` vs `--ignore-severity`
 
@@ -159,16 +165,37 @@ The CSV report contains one row per finding with these columns:
 
 ## Configuration
 
-### `repo_scanner/config.py` — runtime parameters
+### `repo_scanner/config.py` — all configuration
 
-All tuneable parameters live here. Every value is validated by an `assert`
-at import time, so a misconfiguration fails loudly at startup.
+All tuneable parameters, skip lists, and thresholds live in one place.
+Every value is validated by an `assert` at import time, so a misconfiguration
+fails loudly at startup.
+
+To skip directories, edit `SKIP_DIRS` directly in the set:
+
+```python
+SKIP_DIRS: set[str] = {
+    "node_modules",
+    "vendor",
+    # add your own:
+    "my_generated_code",
+    "legacy_archive",
+}
+```
+
+To skip file extensions, edit `SKIP_FILE_EXTENSIONS`:
+
+```python
+SKIP_FILE_EXTENSIONS: set[str] = {".md", ".txt", ".lock"}
+```
 
 | Parameter | Default | Description |
 |---|---|---|
 | `MAX_FILE_SIZE_BYTES` | `2097152` (2 MB) | Skip files larger than this. Set to `0` to disable. |
 | `SKIP_HIDDEN_DIRS` | `True` | Skip directories whose names start with `.` |
 | `BINARY_PROBE_BYTES` | `8192` (8 KB) | Bytes read to detect binary files |
+| `SKIP_DIRS` | see config.py | Directory names to never descend into |
+| `SKIP_FILE_EXTENSIONS` | `set()` (empty) | File extensions to skip entirely. Example: `{".md", ".txt", ".lock"}` |
 | `ENTROPY_SCAN_ENABLED` | `True` | Toggle entropy scanning on/off |
 | `ENTROPY_MIN_LENGTH` | `20` | Minimum token length for entropy analysis |
 | `ENTROPY_MAX_LENGTH` | `120` | Maximum token length for entropy analysis |
@@ -177,21 +204,6 @@ at import time, so a misconfiguration fails loudly at startup.
 | `ENTROPY_SEVERITY` | `CRITICAL` | Severity assigned to entropy findings |
 | `MATCH_DISPLAY_LENGTH` | `120` | Max chars of a match shown in terminal output |
 | `LINE_DISPLAY_LENGTH` | `200` | Max chars of a source line shown in terminal output |
-
-### `repo_scanner/skip_dirs.py` — directory skip list
-
-Add any folder names you want the scanner to never descend into:
-
-```python
-SKIP_DIRS: set[str] = {
-    ...
-    "my_generated_code",
-    "legacy_archive",
-}
-```
-
-Matching is by directory *name only* (not full path), so `"build"` skips
-every directory named `build` anywhere in the tree.
 
 ### Adding / removing detection patterns
 

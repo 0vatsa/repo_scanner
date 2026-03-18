@@ -23,7 +23,7 @@ from .config import (
 from .entropy import scan_entropy
 from .models import Finding, ScanResult
 from .patterns import PATTERNS
-from .skip_dirs import SKIP_DIRS
+from .config import SKIP_DIRS, SKIP_FILE_EXTENSIONS
 
 SEVERITY_ORDER: dict[str, int] = {
     "CRITICAL": 0,
@@ -47,13 +47,18 @@ def _is_likely_binary(path: Path) -> bool:
         return True
 
 
-def _should_scan(path: Path) -> bool:
+def _should_scan(path: Path, skip_extensions: set[str] | None = None) -> bool:
     """
     Return True if the file should be scanned:
+      - extension not in the combined skip set (SKIP_EXTENSIONS + CLI extras)
       - within MAX_FILE_SIZE_BYTES (0 = no limit)
       - not binary
     No extension allowlist — every text file is scanned.
     """
+    combined_skip_exts = {e.lower() for e in SKIP_FILE_EXTENSIONS} | {e.lower() for e in (skip_extensions or set())}
+    if path.suffix.lower() in combined_skip_exts:
+        return False
+
     try:
         size = path.stat().st_size
     except OSError:
@@ -69,7 +74,7 @@ def _should_scan(path: Path) -> bool:
 # Walk
 # ─────────────────────────────────────────────────────────────────────────────
 
-def walk_repo(repo_path: Path):
+def walk_repo(repo_path: Path, skip_extensions: set[str] | None = None):
     """
     Yield (file_path, should_skip: bool) for every file under repo_path.
 
@@ -84,7 +89,7 @@ def walk_repo(repo_path: Path):
         ]
         for fname in files:
             fpath = Path(root) / fname
-            yield fpath, not _should_scan(fpath)
+            yield fpath, not _should_scan(fpath, skip_extensions)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,7 +146,11 @@ def scan_file(
 # Orchestrator
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_scan(repo_path: str, min_severity: str = "INFO") -> ScanResult:
+def run_scan(
+    repo_path: str,
+    min_severity: str = "INFO",
+    skip_extensions: set[str] | None = None,
+) -> ScanResult:
     """Walk *repo_path*, scan every eligible file, and return a ScanResult."""
     root = Path(repo_path).resolve()
     if not root.exists():
@@ -152,7 +161,7 @@ def run_scan(repo_path: str, min_severity: str = "INFO") -> ScanResult:
     files_scanned = 0
     files_skipped = 0
 
-    for fpath, skipped in walk_repo(root):
+    for fpath, skipped in walk_repo(root, skip_extensions):
         if skipped:
             files_skipped += 1
             continue
