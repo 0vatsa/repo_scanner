@@ -2,8 +2,8 @@
 """
 Core scanning logic.
 
-walk_repo  — walks the filesystem, skipping dirs listed in skip_dirs.py
-scan_file  — runs all patterns against a single file
+walk_repo  — walks the filesystem, skipping dirs from skip_dirs.py
+scan_file  — runs all patterns + entropy analysis against a single file
 run_scan   — orchestrates a full repo scan and returns a ScanResult
 """
 
@@ -12,12 +12,18 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from .config import (
+    MAX_FILE_SIZE_BYTES,
+    SKIP_HIDDEN_DIRS,
+    BINARY_PROBE_BYTES,
+    MATCH_DISPLAY_LENGTH,
+    LINE_DISPLAY_LENGTH,
+    ENTROPY_SEVERITY,
+)
+from .entropy import scan_entropy
 from .models import Finding, ScanResult
 from .patterns import PATTERNS
 from .skip_dirs import SKIP_DIRS
-
-# Maximum file size to attempt reading (skip probable binary blobs)
-MAX_FILE_SIZE: int = 2 * 1024 * 1024  # 2 MB
 
 SEVERITY_ORDER: dict[str, int] = {
     "CRITICAL": 0,
@@ -33,9 +39,9 @@ SEVERITY_ORDER: dict[str, int] = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _is_likely_binary(path: Path) -> bool:
-    """Quick heuristic: read the first 8 KB and check for null bytes."""
+    """Probe the first BINARY_PROBE_BYTES bytes for null bytes."""
     try:
-        chunk = path.read_bytes()[:8192]
+        chunk = path.read_bytes()[:BINARY_PROBE_BYTES]
         return b"\x00" in chunk
     except OSError:
         return True
@@ -43,16 +49,19 @@ def _is_likely_binary(path: Path) -> bool:
 
 def _should_scan(path: Path) -> bool:
     """
-    Scan every file that:
-      • is within the size limit
-      • does not appear to be binary
-    No extension allowlist — we scan everything.
+    Return True if the file should be scanned:
+      - within MAX_FILE_SIZE_BYTES (0 = no limit)
+      - not binary
+    No extension allowlist — every text file is scanned.
     """
     try:
-        if path.stat().st_size > MAX_FILE_SIZE:
-            return False
+        size = path.stat().st_size
     except OSError:
         return False
+
+    if MAX_FILE_SIZE_BYTES > 0 and size > MAX_FILE_SIZE_BYTES:
+        return False
+
     return not _is_likely_binary(path)
 
 
@@ -64,13 +73,14 @@ def walk_repo(repo_path: Path):
     """
     Yield (file_path, should_skip: bool) for every file under repo_path.
 
-    Directories in SKIP_DIRS (or starting with '.') are pruned entirely.
+    Directories are pruned when they appear in SKIP_DIRS, or (if
+    SKIP_HIDDEN_DIRS is True) when their name starts with ".".
     """
     for root, dirs, files in os.walk(repo_path):
-        # Prune in-place so os.walk doesn't descend into skipped dirs
         dirs[:] = [
             d for d in dirs
-            if d not in SKIP_DIRS and not d.startswith(".")
+            if d not in SKIP_DIRS
+            and not (SKIP_HIDDEN_DIRS and d.startswith("."))
         ]
         for fname in files:
             fpath = Path(root) / fname
@@ -86,7 +96,7 @@ def scan_file(
     repo_root: Path,
     min_severity: str,
 ) -> list[Finding]:
-    """Run all patterns against a single file and return a list of Findings."""
+    """Run all regex patterns + entropy analysis against a single file."""
     findings: list[Finding] = []
     min_level = SEVERITY_ORDER[min_severity]
 
@@ -98,6 +108,7 @@ def scan_file(
     lines = content.splitlines()
     relative_path = str(file_path.relative_to(repo_root))
 
+    # ── Regex pattern scan ────────────────────────────────────────────────────
     for pat_cfg in PATTERNS:
         if SEVERITY_ORDER[pat_cfg["severity"]] > min_level:
             continue
@@ -115,9 +126,13 @@ def scan_file(
                     advice=pat_cfg["advice"],
                     file=relative_path,
                     line_number=line_no,
-                    line_content=line.strip()[:200],
-                    match=m.group(0)[:120],
+                    line_content=line.strip()[:LINE_DISPLAY_LENGTH],
+                    match=m.group(0)[:MATCH_DISPLAY_LENGTH],
                 ))
+
+    # ── Entropy scan ──────────────────────────────────────────────────────────
+    if SEVERITY_ORDER.get(ENTROPY_SEVERITY, 99) <= min_level:
+        findings.extend(scan_entropy(file_path, repo_root))
 
     return findings
 
@@ -144,14 +159,14 @@ def run_scan(repo_path: str, min_severity: str = "INFO") -> ScanResult:
         files_scanned += 1
         all_findings.extend(scan_file(fpath, root, min_severity))
 
-    # Sort: severity first, then file path, then line number
+    # Sort: severity -> file path -> line number
     all_findings.sort(
-        key=lambda f: (SEVERITY_ORDER[f.severity], f.file, f.line_number)
+        key=lambda f: (SEVERITY_ORDER.get(f.severity, 99), f.file, f.line_number)
     )
 
     counts: dict[str, int] = {s: 0 for s in SEVERITY_ORDER}
     for f in all_findings:
-        counts[f.severity] += 1
+        counts[f.severity] = counts.get(f.severity, 0) + 1
 
     return ScanResult(
         repo_path=str(root),
