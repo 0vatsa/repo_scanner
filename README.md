@@ -28,11 +28,17 @@ python3 main.py /path/to/repo --ignore-id I001 I002
 # mix and match — typical real-world usage
 python3 main.py /path/to/repo --ignore-severity INFO --ignore-id H003 E001
 
-# save a machine-readable JSON report as well
+# save a JSON report
 python3 main.py /path/to/repo --output report.json
 
+# save a CSV report (opens in Excel / Google Sheets)
+python3 main.py /path/to/repo --output-csv report.csv
+
+# save both at once
+python3 main.py /path/to/repo --output report.json --output-csv report.csv
+
 # everything combined
-python3 main.py /path/to/repo --severity HIGH --ignore-id C004 --output report.json
+python3 main.py /path/to/repo --severity HIGH --ignore-id C004 --output report.json --output-csv report.csv
 ```
 
 > **Note:** always run from the project root (the folder containing `main.py`), or use the full path: `python3 /full/path/to/repo_scanner/main.py /path/to/scan`
@@ -120,7 +126,8 @@ python3 main.py <repo> [options]
 | `--severity LEVEL` | Minimum severity to include: `CRITICAL` `HIGH` `MEDIUM` `LOW` `INFO` (default: `INFO`) |
 | `--ignore-severity LEVEL [LEVEL ...]` | Suppress all findings of these severity levels |
 | `--ignore-id ID [ID ...]` | Suppress findings with these specific rule IDs |
-| `--output FILE` | Also save a JSON report to this path |
+| `--output FILE` | Save a JSON report to this path |
+| `--output-csv FILE` | Save a CSV report to this path (compatible with Excel / Google Sheets) |
 
 ### `--severity` vs `--ignore-severity`
 
@@ -130,6 +137,23 @@ These two flags work at different ends of the filter:
 - `--ignore-severity INFO` — runs everything, then drops INFO findings from the output
 
 Use `--severity` when you want a fast, noise-free scan. Use `--ignore-severity` when you want the full scan but need to suppress specific noise categories after the fact.
+
+### CSV columns
+
+The CSV report contains one row per finding with these columns:
+
+| Column | Description |
+|---|---|
+| `severity` | CRITICAL / HIGH / MEDIUM / LOW / INFO |
+| `pattern_id` | Rule ID (e.g. `H002`, `E001`) |
+| `category` | Grouping (e.g. Outbound HTTP, Hardcoded Secret) |
+| `name` | Short rule name |
+| `file` | Relative path to the file |
+| `line_number` | Line number of the finding |
+| `match` | The exact string that matched |
+| `line_content` | Full source line (truncated at 200 chars) |
+| `description` | Why this pattern is suspicious |
+| `advice` | Recommended remediation |
 
 ---
 

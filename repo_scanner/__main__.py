@@ -10,7 +10,7 @@ import argparse
 import sys
 
 from .scanner import run_scan, SEVERITY_ORDER
-from .reporter import print_terminal_report, save_json_report
+from .reporter import print_terminal_report, save_json_report, save_csv_report
 from .models import ScanResult
 
 
@@ -57,6 +57,8 @@ Examples:
   python main.py /path/to/repo --ignore-severity INFO LOW
   python main.py /path/to/repo --ignore-id I001 I002
   python main.py /path/to/repo --ignore-severity INFO --ignore-id H003 --output report.json
+  python main.py /path/to/repo --output-csv report.csv
+  python main.py /path/to/repo --output report.json --output-csv report.csv
         """,
     )
     parser.add_argument(
@@ -90,7 +92,13 @@ Examples:
         "--output",
         default=None,
         metavar="FILE",
-        help="Optional path to save a JSON report.",
+        help="Save a JSON report to this path.",
+    )
+    parser.add_argument(
+        "--output-csv",
+        default=None,
+        metavar="FILE",
+        help="Save a CSV report to this path.",
     )
 
     args = parser.parse_args()
@@ -117,6 +125,9 @@ Examples:
 
     if args.output:
         save_json_report(result, args.output)
+
+    if args.output_csv:
+        save_csv_report(result, args.output_csv)
 
 
 if __name__ == "__main__":
