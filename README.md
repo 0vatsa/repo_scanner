@@ -31,7 +31,7 @@ python3 main.py /path/to/repo --ignore-severity INFO --ignore-id H003 E001
 # save a JSON report
 python3 main.py /path/to/repo --output report.json
 
-# save a CSV report (opens in Excel / Google Sheets)
+# save a CSV report (opens in Excel / Google Sheets / LibreOffice Calc / Text Editor)
 python3 main.py /path/to/repo --output-csv report.csv
 
 # save both at once
