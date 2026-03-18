@@ -31,7 +31,7 @@ python3 main.py /path/to/repo --ignore-severity INFO --ignore-id H003 E001
 # save a JSON report
 python3 main.py /path/to/repo --output report.json
 
-# save a CSV report (opens in Excel / Google Sheets / LibreOffice Calc / Text Editor)
+# save a CSV report (opens in Excel / Google Sheets)
 python3 main.py /path/to/repo --output-csv report.csv
 
 # save both at once
@@ -273,9 +273,10 @@ Entropy severity and threshold are tunable in `config.py`.
 
 Every file is scanned **except**:
 
-- Directories in `skip_dirs.py`
+- Directories listed in `SKIP_DIRS` in `config.py`
 - Hidden directories (names starting with `.`) — controlled by `SKIP_HIDDEN_DIRS` in `config.py`
+- Files with extensions listed in `SKIP_FILE_EXTENSIONS` in `config.py`, or passed via `--skip-ext`
 - Files larger than `MAX_FILE_SIZE_BYTES` (default 2 MB, `0` = no limit)
 - Files containing null bytes in their first `BINARY_PROBE_BYTES` (detected as binary)
 
-There is no extension allowlist — every text file is scanned regardless of type.
+There is no extension allowlist — every text file not explicitly excluded is scanned regardless of type.
