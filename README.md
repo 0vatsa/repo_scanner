@@ -11,17 +11,31 @@ phone home with your data.
 
 ```bash
 # show all findings
-python main.py /path/to/repo
+python3 main.py /path/to/repo
 
-# only HIGH and CRITICAL
-python main.py /path/to/repo --severity HIGH
+# only show HIGH and CRITICAL
+python3 main.py /path/to/repo --severity HIGH
 
-# also write a machine-readable JSON report
-python main.py /path/to/repo --output report.json
+# suppress an entire severity level
+python3 main.py /path/to/repo --ignore-severity INFO
 
-# or invoke as a package
-python -m repo_scanner /path/to/repo --severity MEDIUM
+# suppress multiple severities
+python3 main.py /path/to/repo --ignore-severity INFO LOW
+
+# suppress specific rule IDs
+python3 main.py /path/to/repo --ignore-id I001 I002
+
+# mix and match — typical real-world usage
+python3 main.py /path/to/repo --ignore-severity INFO --ignore-id H003 E001
+
+# save a machine-readable JSON report as well
+python3 main.py /path/to/repo --output report.json
+
+# everything combined
+python3 main.py /path/to/repo --severity HIGH --ignore-id C004 --output report.json
 ```
+
+> **Note:** always run from the project root (the folder containing `main.py`), or use the full path: `python3 /full/path/to/repo_scanner/main.py /path/to/scan`
 
 ---
 
@@ -91,6 +105,31 @@ repo_scanner/
     ├── config.py                ← ✏️  runtime parameters (size limits, entropy tuning, etc.)
     └── skip_dirs.py             ← ✏️  directories to skip
 ```
+
+---
+
+## CLI reference
+
+```
+python3 main.py <repo> [options]
+```
+
+| Argument | Description |
+|---|---|
+| `repo` | Path to the repository or folder to scan |
+| `--severity LEVEL` | Minimum severity to include: `CRITICAL` `HIGH` `MEDIUM` `LOW` `INFO` (default: `INFO`) |
+| `--ignore-severity LEVEL [LEVEL ...]` | Suppress all findings of these severity levels |
+| `--ignore-id ID [ID ...]` | Suppress findings with these specific rule IDs |
+| `--output FILE` | Also save a JSON report to this path |
+
+### `--severity` vs `--ignore-severity`
+
+These two flags work at different ends of the filter:
+
+- `--severity HIGH` — only runs patterns at HIGH and above; INFO/MEDIUM/LOW patterns are never evaluated
+- `--ignore-severity INFO` — runs everything, then drops INFO findings from the output
+
+Use `--severity` when you want a fast, noise-free scan. Use `--ignore-severity` when you want the full scan but need to suppress specific noise categories after the fact.
 
 ---
 

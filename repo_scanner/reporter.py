@@ -6,6 +6,7 @@ print_terminal_report  — coloured, human-readable console output
 save_json_report       — machine-readable JSON dump
 """
 
+import csv
 import json
 from dataclasses import asdict
 
@@ -78,3 +79,58 @@ def save_json_report(result: ScanResult, output_path: str) -> None:
     with open(output_path, "w", encoding="utf-8") as fh:
         json.dump(asdict(result), fh, indent=2)
     print(f"[+] JSON report saved: {output_path}")
+
+
+# ── CSV report ────────────────────────────────────────────────────────────────
+
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:
+    _PANDAS_AVAILABLE = False
+
+CSV_FIELDS = [
+    "severity",
+    "pattern_id",
+    "category",
+    "name",
+    "file",
+    "line_number",
+    "match",
+    "line_content",
+    "description",
+    "advice",
+]
+
+def _findings_to_rows(result: ScanResult) -> list[dict]:
+    return [
+        {
+            "severity":     f.severity,
+            "pattern_id":   f.pattern_id,
+            "category":     f.category,
+            "name":         f.name,
+            "file":         f.file,
+            "line_number":  f.line_number,
+            "match":        f.match,
+            "line_content": f.line_content,
+            "description":  f.description,
+            "advice":       f.advice,
+        }
+        for f in result.findings
+    ]
+
+
+def save_csv_report(result: ScanResult, output_path: str) -> None:
+    rows = _findings_to_rows(result)
+
+    if _PANDAS_AVAILABLE:
+        pd.DataFrame(rows, columns=CSV_FIELDS).to_csv(
+            output_path, index=False, encoding="utf-8"
+        )
+        print(f"[+] CSV report saved (pandas): {output_path}")
+    else:
+        with open(output_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=CSV_FIELDS, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"[+] CSV report saved (csv): {output_path}")

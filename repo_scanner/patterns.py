@@ -131,21 +131,28 @@ PATTERNS: list[dict] = [
             "network destination in code (e.g. passed directly to a socket, HTTP client, "
             "or requests.get()). Often missed by URL-only scanners."
         ),
-        # Matches things like:  "evil.io", 'data.example.com', api.attacker.net
-        # Excludes:  localhost, common local suffixes, version strings (1.2.3.4),
-        #            and lines that already contain http(s):// (covered by H001/H002).
+        # Matches things like:  "evil.io", 'data.example.com', 'api.attacker.net'
+        #
+        # To avoid false positives on code identifiers (logger.info, process.env, etc.)
+        # the domain MUST appear inside a string literal (" ' `) or at a clear value
+        # boundary (after =, :, (, comma, or whitespace).
+        # Additionally the hostname must have 2+ labels (subdomain.tld or more) so
+        # bare single words like "info" or "dev" never fire on their own.
         "pattern": re.compile(
             r'(?i)'
-            r'(?<![/\w])'                               # not preceded by / or word char
-            r'(?!https?://)'                            # not already a full URL
-            r'(?!localhost\b)'
-            r'(?!\d{1,3}(?:\.\d{1,3}){3})'             # not a bare IP (caught by L001)
-            r'([a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?'
-            r'(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*'
-            r'\.(com|io|net|org|co|dev|app|ai|cloud|xyz|info|biz|tech|online|site|me'
-            r'|ru|cn|tk|top|club|store|live|pro|cc|tv|pw|ws|link|click|download'
-            r'|sh|to|ly|gl|gg|run|pub|us|uk|de|fr|jp|br|in|au))'
-            r'(?![a-zA-Z0-9\-])'                        # must end the token
+            # Must be at a value boundary — inside quotes, or after = : ( , or space
+            r'(?:(?<=["\'\`])|(?<==)|(?<=:\s)|(?<=,\s)|(?<=\())'
+            r'(?!https?://)'                      # not already a full URL
+            r'(?!localhost\b)'                    # not localhost
+            r'(?!\d{1,3}(?:\.\d{1,3}){3})'     # not an IP address
+            # Require at least one label before the TLD (subdomain.tld minimum)
+            # Left label: 2+ chars
+            r'((?:[a-zA-Z0-9][a-zA-Z0-9\-]{1,61}[a-zA-Z0-9]|[a-zA-Z0-9]{2,})'
+            r'(?:\.[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])*'
+            r'\.(com|io|net|org|co|dev|app|ai|cloud|xyz|info|biz|tech|online'
+            r'|site|me|ru|cn|tk|top|club|store|live|pro|cc|tv|pw|ws|link'
+            r'|click|download|sh|to|ly|gl|gg|run|pub|us|uk|de|fr|jp|br|in|au))'
+            r'(?![a-zA-Z0-9\-])'                  # must end the token
         ),
         "advice": (
             "Verify this domain is an approved endpoint. Even without https://, "
